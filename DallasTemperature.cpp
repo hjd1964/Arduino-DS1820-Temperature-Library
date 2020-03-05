@@ -166,42 +166,125 @@ bool DallasTemperature::isConnected(const uint8_t* deviceAddress) {
 
 // attempt to determine if the device at the given address is connected to the bus
 // also allows for updating the read scratchpad
-bool DallasTemperature::isConnected(const uint8_t* deviceAddress,
-		uint8_t* scratchPad) {
-	bool b = readScratchPad(deviceAddress, scratchPad);
-	return b && !isAllZeros(scratchPad) && (_wire->crc8(scratchPad, 8) == scratchPad[SCRATCHPAD_CRC]);
+int16_t DallasTemperature::isConnected(const uint8_t* deviceAddress,
+		uint8_t* scratchPad, bool polling) {
+
+	if (!polling) {
+		bool b = readScratchPad(deviceAddress, scratchPad);
+//		if (isAllZeros(scratchPad)) { Serial.print("FZ"); }
+//		if (_wire->crc8(scratchPad, 8) != scratchPad[SCRATCHPAD_CRC]) { Serial.print("FCRC"); Serial.print(_wire->crc8(scratchPad, 8)); }
+		return (b == 1) && !isAllZeros(scratchPad) && (_wire->crc8(scratchPad, 8) == scratchPad[SCRATCHPAD_CRC]);
+	} else {
+		int16_t result = readScratchPad(deviceAddress, scratchPad, polling);
+		if (result == 1) {
+			if (isAllZeros(scratchPad)) { /* Serial.print("FZ"); */ result = DEVICE_DISCONNECTED_RAW; }
+			if (_wire->crc8(scratchPad, 8) != scratchPad[SCRATCHPAD_CRC]) { /* Serial.print("FCRC"); Serial.print(_wire->crc8(scratchPad, 8)); */ result = DEVICE_DISCONNECTED_RAW; }
+		}
+		return result;
+	}
 }
 
-bool DallasTemperature::readScratchPad(const uint8_t* deviceAddress,
-		uint8_t* scratchPad) {
+int16_t DallasTemperature::readScratchPad(const uint8_t* deviceAddress,
+		uint8_t* scratchPad, bool polling) {
 
-	// send the reset command and fail fast
-	int b = _wire->reset();
-	if (b == 0)
-		return false;
+	if (!polling) {
 
-	_wire->select(deviceAddress);
-	_wire->write(READSCRATCH);
+		// send the reset command and fail fast
+		int b = _wire->reset(); 
+//		Serial.println();
+//		Serial.print(">reset");
+		
+		if (b == 0) {
+//			Serial.print("(failed)");
+			return 0;
+		}
+//		Serial.print(",");
 
-	// Read all registers in a simple loop
-	// byte 0: temperature LSB
-	// byte 1: temperature MSB
-	// byte 2: high alarm temp
-	// byte 3: low alarm temp
-	// byte 4: DS18S20: store for crc
-	//         DS18B20 & DS1822: configuration register
-	// byte 5: internal use & crc
-	// byte 6: DS18S20: COUNT_REMAIN
-	//         DS18B20 & DS1822: store for crc
-	// byte 7: DS18S20: COUNT_PER_C
-	//         DS18B20 & DS1822: store for crc
-	// byte 8: SCRATCHPAD_CRC
-	for (uint8_t i = 0; i < 9; i++) {
-		scratchPad[i] = _wire->read();
+		_wire->select(deviceAddress);
+//		Serial.print("select,");
+		
+		_wire->write(READSCRATCH);
+//		Serial.print("read_sp,");
+
+		// Read all registers in a simple loop
+		// byte 0: temperature LSB
+		// byte 1: temperature MSB
+		// byte 2: high alarm temp
+		// byte 3: low alarm temp
+		// byte 4: DS18S20: store for crc
+		//         DS18B20 & DS1822: configuration register
+		// byte 5: internal use & crc
+		// byte 6: DS18S20: COUNT_REMAIN
+		//         DS18B20 & DS1822: store for crc
+		// byte 7: DS18S20: COUNT_PER_C
+		//         DS18B20 & DS1822: store for crc
+		// byte 8: SCRATCHPAD_CRC
+		for (uint8_t i = 0; i < 9; i++) {
+			scratchPad[i] = _wire->read();
+//			Serial.print("sp"); Serial.print(i); Serial.print("("); Serial.print(scratchPad[i]); Serial.print(")"); Serial.print(",");
+		}
+
+		b = _wire->reset();
+//		Serial.print("reset");
+//		if (b==0) Serial.print("(failed)"); else Serial.print("<");
+		return (b == 1);
+
+	} else {
+		
+		static int stage = 0;
+		static uint8_t b;
+        static ScratchPad sp;
+		
+		// send the reset command and fail fast
+		if (stage == 0) {
+			b = _wire->reset();
+			stage++;
+//			Serial.println();
+//			Serial.print(">reset");
+			if (b == 0) {
+				stage=0;
+//				Serial.print("(failed)");
+				return DEVICE_DISCONNECTED_RAW;
+			}
+//			Serial.print(",");
+			return DEVICE_POLLING_RAW;
+		}
+
+		if (stage == 1) {
+			if (_wire->select(deviceAddress,polling)) stage++;
+//			if (stage==2) Serial.print("select,");
+			return DEVICE_POLLING_RAW;
+		}
+		
+		if (stage == 2) {
+			_wire->write(READSCRATCH);
+			stage++;
+//			Serial.print("read_sp,");
+			return DEVICE_POLLING_RAW;
+		}
+
+		while (stage >= 3 && stage <= 11) {
+			sp[stage-3] = _wire->read();
+//			Serial.print("sp"); Serial.print(stage-3); Serial.print("("); Serial.print(sp[stage-3]); Serial.print(")"); Serial.print(",");
+			stage++;
+			return DEVICE_POLLING_RAW;
+		}
+
+		if (stage == 12) {
+			b = _wire->reset();
+			for (uint8_t i = 0; i < 9; i++) scratchPad[i]=sp[i];
+			stage=0;
+//			Serial.print("reset");
+			if (b == 0) {
+//				Serial.print("(failed)");
+				return DEVICE_DISCONNECTED_RAW;
+			}
+//			Serial.print("<");
+		}
+
+		return 1;
+
 	}
-
-	b = _wire->reset();
-	return (b == 1);
 }
 
 void DallasTemperature::writeScratchPad(const uint8_t* deviceAddress,
@@ -388,17 +471,31 @@ bool DallasTemperature::isConversionComplete() {
 }
 
 // sends command for all devices on the bus to perform a temperature conversion
-void DallasTemperature::requestTemperatures() {
+bool DallasTemperature::requestTemperatures(bool polling) {
+    static uint8_t stage = 0;
+	if (!polling) {
 
 	_wire->reset();
 	_wire->skip();
 	_wire->write(STARTCONVO, parasite);
 
 	// ASYNC mode?
-	if (!waitForConversion)
-		return;
-	blockTillConversionComplete(bitResolution);
+	if (waitForConversion) blockTillConversionComplete(bitResolution);
 
+	return true;
+
+	} else {
+
+	blockTillConversionComplete(bitResolution);
+	if (stage == 0) { _wire->reset(); stage++; return false; }
+	if (stage == 1) { _wire->skip(); stage++; return false; }
+	if (stage == 2) { _wire->write(STARTCONVO, parasite); stage++; return false; }
+	if (stage == 3) { if (waitForConversion) blockTillConversionComplete(bitResolution); stage++; return false; }
+	if (stage == 4) stage=0;
+	
+	return stage == 0;
+
+	}
 }
 
 // sends command for one device to perform a temperature by address
@@ -549,13 +646,12 @@ int16_t DallasTemperature::calculateTemperature(const uint8_t* deviceAddress,
 // the numeric value of DEVICE_DISCONNECTED_RAW is defined in
 // DallasTemperature.h. It is a large negative number outside the
 // operating range of the device
-int16_t DallasTemperature::getTemp(const uint8_t* deviceAddress) {
+int16_t DallasTemperature::getTemp(const uint8_t* deviceAddress, bool polling) {
 
 	ScratchPad scratchPad;
-	if (isConnected(deviceAddress, scratchPad))
-		return calculateTemperature(deviceAddress, scratchPad);
-	return DEVICE_DISCONNECTED_RAW;
-
+	int16_t result = isConnected(deviceAddress, scratchPad, polling);
+	if (result == 1) return calculateTemperature(deviceAddress, scratchPad);
+	return result;
 }
 
 // returns temperature in degrees C or DEVICE_DISCONNECTED_C if the
@@ -563,8 +659,8 @@ int16_t DallasTemperature::getTemp(const uint8_t* deviceAddress) {
 // the numeric value of DEVICE_DISCONNECTED_C is defined in
 // DallasTemperature.h. It is a large negative number outside the
 // operating range of the device
-float DallasTemperature::getTempC(const uint8_t* deviceAddress) {
-	return rawToCelsius(getTemp(deviceAddress));
+float DallasTemperature::getTempC(const uint8_t* deviceAddress, bool polling) {
+	return rawToCelsius(getTemp(deviceAddress, polling));
 }
 
 // returns temperature in degrees F or DEVICE_DISCONNECTED_F if the
@@ -572,8 +668,8 @@ float DallasTemperature::getTempC(const uint8_t* deviceAddress) {
 // the numeric value of DEVICE_DISCONNECTED_F is defined in
 // DallasTemperature.h. It is a large negative number outside the
 // operating range of the device
-float DallasTemperature::getTempF(const uint8_t* deviceAddress) {
-	return rawToFahrenheit(getTemp(deviceAddress));
+float DallasTemperature::getTempF(const uint8_t* deviceAddress, bool polling) {
+	return rawToFahrenheit(getTemp(deviceAddress, polling));
 }
 
 // returns true if the bus requires parasite power
@@ -638,6 +734,10 @@ float DallasTemperature::rawToCelsius(int16_t raw) {
 
 	if (raw <= DEVICE_DISCONNECTED_RAW)
 		return DEVICE_DISCONNECTED_C;
+
+	if (raw <= DEVICE_POLLING_RAW)
+		return DEVICE_POLLING_C;
+
 	// C = RAW/128
 	return (float) raw * 0.0078125;
 
@@ -648,6 +748,10 @@ float DallasTemperature::rawToFahrenheit(int16_t raw) {
 
 	if (raw <= DEVICE_DISCONNECTED_RAW)
 		return DEVICE_DISCONNECTED_F;
+
+	if (raw <= DEVICE_POLLING_RAW)
+		return DEVICE_POLLING_F;
+
 	// C = RAW/128
 	// F = (C*1.8)+32 = (RAW/128*1.8)+32 = (RAW*0.0140625)+32
 	return ((float) raw * 0.0140625) + 32;

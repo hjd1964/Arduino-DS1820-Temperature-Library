@@ -1,8 +1,6 @@
 #ifndef DallasTemperature_h
 #define DallasTemperature_h
 
-#define DALLASTEMPLIBVERSION "3.8.1" // To be deprecated -> TODO remove in 4.0.0
-
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
 // License as published by the Free Software Foundation; either
@@ -33,9 +31,12 @@
 #define DS28EA00MODEL 0x42
 
 // Error Codes
+#define DEVICE_DISCONNECTED_RAW -7040
 #define DEVICE_DISCONNECTED_C -127
 #define DEVICE_DISCONNECTED_F -196.6
-#define DEVICE_DISCONNECTED_RAW -7040
+#define DEVICE_POLLING_RAW -7039
+#define DEVICE_POLLING_C -126
+#define DEVICE_POLLING_F -194.8
 
 // For readPowerSupply on oneWire bus
 #ifndef nullptr
@@ -78,10 +79,11 @@ public:
 
 	// attempt to determine if the device at the given address is connected to the bus
 	// also allows for updating the read scratchpad
-	bool isConnected(const uint8_t*, uint8_t*);
+	//bool isConnected(const uint8_t*, uint8_t*);
+    int16_t isConnected(const uint8_t* deviceAddress, uint8_t* scratchPad, bool polling = false);
 
 	// read device's scratchpad
-	bool readScratchPad(const uint8_t*, uint8_t*);
+	int16_t readScratchPad(const uint8_t*, uint8_t*, bool polling = false);
 
 	// write device's scratchpad
 	void writeScratchPad(const uint8_t*, const uint8_t*);
@@ -100,7 +102,7 @@ public:
 
 	// set resolution of a device to 9, 10, 11, or 12 bits
 	bool setResolution(const uint8_t*, uint8_t,
-			bool skipGlobalBitResolutionCalculation = false);
+	bool skipGlobalBitResolutionCalculation = false);
 
 	// sets/gets the waitForConversion flag
 	void setWaitForConversion(bool);
@@ -111,7 +113,7 @@ public:
 	bool getCheckForConversion(void);
 
 	// sends command for all devices on the bus to perform a temperature conversion
-	void requestTemperatures(void);
+	bool requestTemperatures(bool polling = false);
 
 	// sends command for one device to perform a temperature conversion by address
 	bool requestTemperaturesByAddress(const uint8_t*);
@@ -120,13 +122,13 @@ public:
 	bool requestTemperaturesByIndex(uint8_t);
 
 	// returns temperature raw value (12 bit integer of 1/128 degrees C)
-	int16_t getTemp(const uint8_t*);
+	int16_t getTemp(const uint8_t*, bool polling = false);
 
 	// returns temperature in degrees C
-	float getTempC(const uint8_t*);
+	float getTempC(const uint8_t*, bool polling = false);
 
 	// returns temperature in degrees F
-	float getTempF(const uint8_t*);
+	float getTempF(const uint8_t*, bool polling = false);
 
 	// Get temperature for device index (slow)
 	float getTempCByIndex(uint8_t);
