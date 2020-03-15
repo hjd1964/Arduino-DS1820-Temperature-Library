@@ -475,25 +475,24 @@ bool DallasTemperature::requestTemperatures(bool polling) {
     static uint8_t stage = 0;
 	if (!polling) {
 
-	_wire->reset();
-	_wire->skip();
-	_wire->write(STARTCONVO, parasite);
+		_wire->reset();
+		_wire->skip();
+		_wire->write(STARTCONVO, parasite);
 
-	// ASYNC mode?
-	if (waitForConversion) blockTillConversionComplete(bitResolution);
+		// ASYNC mode?
+		if (waitForConversion) blockTillConversionComplete(bitResolution);
 
-	return true;
+		return true;
 
 	} else {
 
-	blockTillConversionComplete(bitResolution);
-	if (stage == 0) { _wire->reset(); stage++; return false; }
-	if (stage == 1) { _wire->skip(); stage++; return false; }
-	if (stage == 2) { _wire->write(STARTCONVO, parasite); stage++; return false; }
-	if (stage == 3) { if (waitForConversion) blockTillConversionComplete(bitResolution); stage++; return false; }
-	if (stage == 4) stage=0;
-	
-	return stage == 0;
+		if (stage == 0) { _wire->reset(); stage++; return false; }
+		if (stage == 1) { _wire->skip(); stage++; return false; }
+		if (stage == 2) { _wire->write(STARTCONVO, parasite); stage++; return false; }
+		if (stage == 3) { if (waitForConversion) blockTillConversionComplete(bitResolution); stage++; }
+		if (stage == 4) stage=0;
+
+		return stage == 0;
 
 	}
 }
