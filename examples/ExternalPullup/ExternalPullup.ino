@@ -1,5 +1,5 @@
 #include <OneWire.h>
-#include <DallasTemperature.h>
+#include <DallasTemp.h>
 
 // Data wire is plugged into port 2 on the Arduino, while external pullup P-MOSFET gate into port 3
 #define ONE_WIRE_BUS    2

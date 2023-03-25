@@ -10,7 +10,7 @@
 
 // Include the libraries we need
 #include <OneWire.h>
-#include <DallasTemperature.h>
+#include <DallasTemp.h>
 
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 2

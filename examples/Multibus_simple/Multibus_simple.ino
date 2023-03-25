@@ -1,5 +1,5 @@
 #include <OneWire.h>
-#include <DallasTemperature.h>
+#include <DallasTemp.h>
 
 OneWire ds18x20[] = { 3, 7 };
 const int oneWireCount = sizeof(ds18x20)/sizeof(OneWire);

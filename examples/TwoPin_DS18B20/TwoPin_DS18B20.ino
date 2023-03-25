@@ -10,7 +10,7 @@
 //
 
 #include <OneWire.h>
-#include <DallasTemperature.h>
+#include <DallasTemp.h>
 
 #define ONE_WIRE_BUS_1 2
 #define ONE_WIRE_BUS_2 4
